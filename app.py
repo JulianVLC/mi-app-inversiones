@@ -9,7 +9,7 @@ st.set_page_config(page_title="Mi App de Inversiones Segura", page_icon="📈", 
 # =========================================================================
 # CONFIGURACIÓN DE SEGURIDAD Y BASE DE DATOS
 # =========================================================================
-CONTRASENA_ACCESO = "1234"  # <-- Cambia "2707" por la contraseña que quieras para tu móvil
+CONTRASENA_ACCESO = "2707"  # <-- Cambia "2707" por la contraseña que quieras para tu móvil
 
 URL_GOOGLE_SHEETS = "https://docs.google.com/spreadsheets/d/1e6en21Ieuoy4rQeiTa_aUIO9mgLHjN3l9xBUYQaxKZY/edit?gid=0#gid=0"
 # =========================================================================
