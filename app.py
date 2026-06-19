@@ -135,7 +135,8 @@ if st.session_state.portafolio:
 
     # Renderizar KPIs de dinero total
     ganancia_global_usd = total_actual_usd - total_costo_usd
-    roi_global = (ganancia_total_usd / total_costo_usd) * 100 if total_costo_usd > 0 else 0
+    roi_global = (ganancia_global_usd / total_costo_usd) * 100 if total_costo_usd > 0 else 0
+
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Capital Total Invertido", f"{simbolo_kpi}{total_costo_usd * factor:,.2f}")
