@@ -82,21 +82,24 @@ if lista_activos:
             except:
                 costo_compra = 0.0
 
-            # Rescate e inyección segura de las nuevas variables de comisiones
             try:
-                c_compra = float(str(item.get("comision_compra", 0)).replace(",", ".").strip())
+                val_compra = str(item.get("comision_compra", "0")).strip()
+                c_compra = float(val_compra.replace(",", ".")) if val_compra and val_compra != "nan" else 0.0
             except:
                 c_compra = 0.0
+                
             try:
-                c_venta = float(str(item.get("comision_venta", 0)).replace(",", ".").strip())
+                val_venta = str(item.get("comision_venta", "0")).strip()
+                c_venta = float(val_venta.replace(",", ".")) if val_venta and val_venta != "nan" else 0.0
             except:
                 c_venta = 0.0
+                
             try:
-                c_anual = float(str(item.get("comision_anual", 0)).replace(",", ".").strip())
+                val_anual = str(item.get("comision_anual", "0")).strip()
+                c_anual = float(val_anual.replace(",", ".")) if val_anual and val_anual != "nan" else 0.0
             except:
                 c_anual = 0.0
 
-            # Buscar precio en vivo
             try:
                 ticker_data = yf.Ticker(ticker_str)
                 precio_actual = ticker_data.fast_info['last_price']
@@ -105,14 +108,12 @@ if lista_activos:
             except:
                 precio_actual = costo_compra
             
-            # Cálculos directos en moneda de origen
             costo_total_origen = cant_acciones * costo_compra
             valor_actual_origen = cant_acciones * precio_actual
             comisiones_totales_origen = c_compra + c_venta + c_anual
             
             moneda_str = str(item.get("moneda", "EUR")).strip().upper()
             
-            # Unificación global a USD para KPIs superiores
             costo_usd = costo_total_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else costo_total_origen
             actual_usd = valor_actual_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else valor_actual_origen
             comisiones_usd = comisiones_totales_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else comisiones_totales_origen
@@ -121,7 +122,6 @@ if lista_activos:
             total_actual_usd += actual_usd
             total_comisiones_usd += comisiones_usd
             
-            # El rendimiento neto descuenta obligatoriamente todas las comisiones acumuladas
             rendimiento_dinero_neto = valor_actual_origen - costo_total_origen - comisiones_totales_origen
             rendimiento_porc_neto = (rendimiento_dinero_neto / (costo_total_origen + comisiones_totales_origen)) * 100 if costo_total_origen > 0 else 0
             simbolo_orig = "€" if moneda_str == "EUR" else "$"
@@ -145,7 +145,6 @@ if lista_activos:
         factor = 1 / TIPO_CAMBIO_EUR_USD if moneda_visual == "Euros (€)" else 1.0
         simbolo_kpi = "€" if moneda_visual == "Euros (€)" else "$"
 
-        # Cómputo global de rendimiento neto descontando comisiones del total invertido
         ganancia_global_neta_usd = total_actual_usd - total_costo_usd - total_comisiones_usd
         roi_global_neto = (ganancia_global_neta_usd / (total_costo_usd + total_comisiones_usd)) * 100 if total_costo_usd > 0 else 0
 
@@ -159,7 +158,7 @@ if lista_activos:
             st.markdown(f"""
                 <div style='text-align: center; background-color: #1c2541; padding: 4px; border-radius: 8px; border-top: 4px solid {color_rendimiento};'>
                     <span style='color: #9ca3af; font-size: 11px; text-transform: uppercase;'>Beneficio Neto</span><br>
-                    <span style='color: {color_rendimiento}; font-size: 18px; font-weight: bold;'>{ganancia_global_neta_usd * factor:+\,.2f}{simbolo_kpi}<br>({roi_global_neto:+.2f}%)</span>
+                    <span style='color: {color_rendimiento}; font-size: 18px; font-weight: bold;'>{ganancia_global_neta_usd * factor:+.2f}{simbolo_kpi}<br>({roi_global_neto:+.2f}%)</span>
                 </div>
             """, unsafe_allow_html=True)
 
