@@ -4,14 +4,14 @@ import yfinance as yf
 import plotly.express as px
 
 # Configuración de pantalla adaptable
-st.set_page_config(page_title="Mi App de Inversiones Segura", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Mi App de Inversiones Segura Pro", page_icon="📈", layout="wide")
 
 # =========================================================================
 # CONFIGURACIÓN DE SEGURIDAD Y BASE DE DATOS
 # =========================================================================
 CONTRASENA_ACCESO = "2707"  # Tu contraseña fija configurada
 
-URL_GOOGLE_SHEETS = "https://docs.google.com/spreadsheets/d/1e6en21Ieuoy4rQeiTa_aUIO9mgLHjN3l9xBUYQaxKZY/edit?usp=sharing"
+URL_GOOGLE_SHEETS = "https://google.com"
 # =========================================================================
 
 # Estilos visuales
@@ -51,21 +51,22 @@ try:
 except:
     lista_activos = []
 
-st.title("📱 Mi Portafolio Seguro en Tiempo Real")
-st.caption("Conexión permanente con tu Hoja de cálculo de Google y encriptación de acceso.")
+st.title("📱 Mi Portafolio con Comisiones en Tiempo Real")
+st.caption("Conexión permanente con Google Sheets, cálculo de gastos operativos y encriptación de acceso.")
 
 TIPO_CAMBIO_EUR_USD = 1.14
 
 # Formulario informativo superior
 with st.expander("📥 Cómo Registrar Nuevas Compras"):
-    st.info("Para añadir un activo de forma permanente, abre tu Hoja de cálculo de Google e introduce una fila con los datos. Tu aplicación se actualizará sola.")
+    st.info("Para añadir un activo, abre tu Hoja de cálculo de Google e introduce una fila con los datos y sus respectivas comisiones de compra, venta y custodia.")
 
 iffs_datos = []
 total_costo_usd = 0.0
 total_actual_usd = 0.0
+total_comisiones_usd = 0.0
 
 if lista_activos:
-    with st.spinner("🔄 Sincronizando cotizaciones vivas..."):
+    with st.spinner("🔄 Sincronizando cotizaciones vivas y auditando gastos..."):
         for item in lista_activos:
             ticker_str = str(item.get("ticker", "")).strip().upper()
             if not ticker_str or ticker_str == "NAN":
@@ -81,6 +82,21 @@ if lista_activos:
             except:
                 costo_compra = 0.0
 
+            # Rescate e inyección segura de las nuevas variables de comisiones
+            try:
+                c_compra = float(str(item.get("comision_compra", 0)).replace(",", ".").strip())
+            except:
+                c_compra = 0.0
+            try:
+                c_venta = float(str(item.get("comision_venta", 0)).replace(",", ".").strip())
+            except:
+                c_venta = 0.0
+            try:
+                c_anual = float(str(item.get("comision_anual", 0)).replace(",", ".").strip())
+            except:
+                c_anual = 0.0
+
+            # Buscar precio en vivo
             try:
                 ticker_data = yf.Ticker(ticker_str)
                 precio_actual = ticker_data.fast_info['last_price']
@@ -89,34 +105,37 @@ if lista_activos:
             except:
                 precio_actual = costo_compra
             
-            # Cálculos directos basados en la moneda de origen de la acción
+            # Cálculos directos en moneda de origen
             costo_total_origen = cant_acciones * costo_compra
             valor_actual_origen = cant_acciones * precio_actual
+            comisiones_totales_origen = c_compra + c_venta + c_anual
             
             moneda_str = str(item.get("moneda", "EUR")).strip().upper()
             
-            # Acumuladores globales unificados para los KPIs superiores
+            # Unificación global a USD para KPIs superiores
             costo_usd = costo_total_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else costo_total_origen
             actual_usd = valor_actual_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else valor_actual_origen
+            comisiones_usd = comisiones_totales_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else comisiones_totales_origen
             
             total_costo_usd += costo_usd
             total_actual_usd += actual_usd
+            total_comisiones_usd += comisiones_usd
             
-            rendimiento_dinero = valor_actual_origen - costo_total_origen
-            rendimiento_porc = (rendimiento_dinero / costo_total_origen) * 100 if costo_total_origen > 0 else 0
+            # El rendimiento neto descuenta obligatoriamente todas las comisiones acumuladas
+            rendimiento_dinero_neto = valor_actual_origen - costo_total_origen - comisiones_totales_origen
+            rendimiento_porc_neto = (rendimiento_dinero_neto / (costo_total_origen + comisiones_totales_origen)) * 100 if costo_total_origen > 0 else 0
             simbolo_orig = "€" if moneda_str == "EUR" else "$"
             
             iffs_datos.append({
                 "Ticker": ticker_str, 
                 "Nombre": item.get("nombre", ticker_str), 
-                "ISIN": item.get("isin", "N/A"), 
                 "Acciones": round(cant_acciones, 4),
-                "Precio Compra": f"{simbolo_orig}{costo_compra:,.4f}", 
-                "Precio Actual": f"{simbolo_orig}{precio_actual:,.4f}",
-                "Inversión Inicial": f"{simbolo_orig}{costo_total_origen:,.2f}", 
-                "Valor de Mercado": f"{simbolo_orig}{valor_actual_origen:,.2f}", 
-                "Rendimiento": f"{rendimiento_porc:+.2f}%",
-                "Monto_Grafico_USD": actual_usd # Mantenemos oculto el valor unificado para el gráfico circular
+                "Precio Actual": f"{simbolo_orig}{precio_actual:,.2f}",
+                "Inversión Bruta": f"{simbolo_orig}{costo_total_origen:,.2f}", 
+                "Gastos Bróker": f"{simbolo_orig}{comisiones_totales_origen:,.2f}",
+                "Valor Mercado": f"{simbolo_orig}{valor_actual_origen:,.2f}", 
+                "Rendimiento Neto": f"{rendimiento_porc_neto:+.2f}%",
+                "Monto_Grafico_USD": actual_usd
             })
 
     if iffs_datos:
@@ -126,21 +145,30 @@ if lista_activos:
         factor = 1 / TIPO_CAMBIO_EUR_USD if moneda_visual == "Euros (€)" else 1.0
         simbolo_kpi = "€" if moneda_visual == "Euros (€)" else "$"
 
-        ganancia_global_usd = total_actual_usd - total_costo_usd
-        roi_global = (ganancia_global_usd / total_costo_usd) * 100 if total_costo_usd > 0 else 0
+        # Cómputo global de rendimiento neto descontando comisiones del total invertido
+        ganancia_global_neta_usd = total_actual_usd - total_costo_usd - total_comisiones_usd
+        roi_global_neto = (ganancia_global_neta_usd / (total_costo_usd + total_comisiones_usd)) * 100 if total_costo_usd > 0 else 0
 
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("Capital Invertido", f"{simbolo_kpi}{total_costo_usd * factor:,.2f}")
-        c2.metric("Valor del Portafolio", f"{simbolo_kpi}{total_actual_usd * factor:,.2f}")
-        c3.metric("Rendimiento Neto", f"{simbolo_kpi}{ganancia_global_usd * factor:+.2f} ({roi_global:+.2f}%)")
+        c2.metric("Total Comisiones", f"{simbolo_kpi}{total_comisiones_usd * factor:,.2f}")
+        c3.metric("Valor Portafolio", f"{simbolo_kpi}{total_actual_usd * factor:,.2f}")
+        
+        color_rendimiento = "#10b981" if ganancia_global_neta_usd >= 0 else "#ef4444"
+        with c4:
+            st.markdown(f"""
+                <div style='text-align: center; background-color: #1c2541; padding: 4px; border-radius: 8px; border-top: 4px solid {color_rendimiento};'>
+                    <span style='color: #9ca3af; font-size: 11px; text-transform: uppercase;'>Beneficio Neto</span><br>
+                    <span style='color: {color_rendimiento}; font-size: 18px; font-weight: bold;'>{ganancia_global_neta_usd * factor:+\,.2f}{simbolo_kpi}<br>({roi_global_neto:+.2f}%)</span>
+                </div>
+            """, unsafe_allow_html=True)
 
         st.markdown("---")
         st.subheader("🍰 Distribución de Capital")
         fig_pie = px.pie(df, values='Monto_Grafico_USD', names='Nombre', hole=0.4, template="plotly_dark")
         st.plotly_chart(fig_pie, use_container_width=True)
 
-        st.subheader("📋 Lista Detallada de Activos")
-        # Quitamos la columna de gráfico para no confundir la vista tabular limpia
+        st.subheader("📋 Lista Detallada de Activos (Auditoría Desglosada)")
         df_mostrar = df.drop(columns=['Monto_Grafico_USD'])
         st.dataframe(df_mostrar, use_container_width=True)
     else:
