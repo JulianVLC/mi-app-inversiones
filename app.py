@@ -9,9 +9,9 @@ st.set_page_config(page_title="Mi App de Inversiones Segura", page_icon="📈", 
 # =========================================================================
 # CONFIGURACIÓN DE SEGURIDAD Y BASE DE DATOS
 # =========================================================================
-CONTRASENA_ACCESO = "2707"  # <-- Pon tu contraseña preferida aquí
+CONTRASENA_ACCESO = "2707"  # Tu contraseña fija configurada
 
-URL_GOOGLE_SHEETS = "https://docs.google.com/spreadsheets/d/1e6en21Ieuoy4rQeiTa_aUIO9mgLHjN3l9xBUYQaxKZY/edit?usp=sharing"
+URL_GOOGLE_SHEETS = "https://google.com"
 # =========================================================================
 
 # Estilos visuales
@@ -45,11 +45,7 @@ try:
     if "/edit" in URL_GOOGLE_SHEETS and not "tqx=out:csv" in csv_url:
         csv_url = URL_GOOGLE_SHEETS.split('/edit') + '/gviz/tq?tqx=out:csv'
     df_google = pd.read_csv(csv_url)
-    
-    # Forzamos que los nombres de las columnas se lean siempre en minúsculas y sin espacios ocultos
     df_google.columns = df_google.columns.str.strip().str.lower()
-    
-    # Eliminamos de la lectura cualquier fila que Google Sheets cree vacía abajo
     df_google = df_google.dropna(subset=['ticker'])
     lista_activos = df_google.to_dict(orient="records")
 except:
@@ -62,7 +58,7 @@ TIPO_CAMBIO_EUR_USD = 1.14
 
 # Formulario informativo superior
 with st.expander("📥 Cómo Registrar Nuevas Compras"):
-    st.info("Para añadir un activo de forma permanente, abre tu Hoja de cálculo de Google e introduce una fila con los datos (Ticker, Nombre, ISIN, Acciones, Costo de Compra y Moneda). Tu aplicación se actualizará sola.")
+    st.info("Para añadir un activo de forma permanente, abre tu Hoja de cálculo de Google e introduce una fila con los datos. Tu aplicación se actualizará sola.")
 
 iffs_datos = []
 total_costo_usd = 0.0
@@ -71,12 +67,10 @@ total_actual_usd = 0.0
 if lista_activos:
     with st.spinner("🔄 Sincronizando cotizaciones vivas..."):
         for item in lista_activos:
-            # Forzamos conversión segura de cada celda protegiendo la app si falta un dato
             ticker_str = str(item.get("ticker", "")).strip().upper()
             if not ticker_str or ticker_str == "NAN":
                 continue
                 
-            # Intentamos rescatar los números de forma ultra segura limpiando cualquier carácter raro
             try:
                 cant_acciones = float(str(item.get("acciones", 0)).replace(",", ".").strip())
             except:
@@ -95,10 +89,13 @@ if lista_activos:
             except:
                 precio_actual = costo_compra
             
+            # Cálculos directos basados en la moneda de origen de la acción
             costo_total_origen = cant_acciones * costo_compra
             valor_actual_origen = cant_acciones * precio_actual
             
-            moneda_str = str(item.get("moneda", "USD")).strip().upper()
+            moneda_str = str(item.get("moneda", "EUR")).strip().upper()
+            
+            # Acumuladores globales unificados para los KPIs superiores
             costo_usd = costo_total_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else costo_total_origen
             actual_usd = valor_actual_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else valor_actual_origen
             
@@ -113,18 +110,19 @@ if lista_activos:
                 "Ticker": ticker_str, 
                 "Nombre": item.get("nombre", ticker_str), 
                 "ISIN": item.get("isin", "N/A"), 
-                "Acciones": cant_acciones,
-                "Precio Compra": f"{simbolo_orig}{costo_compra:,.2f}", 
-                "Precio Actual": f"{simbolo_orig}{precio_actual:,.2f}",
-                "Inversión Inicial": costo_usd, 
-                "Valor Mercado (USD)": actual_usd, 
-                "Rendimiento": f"{rendimiento_porc:+.2f}%"
+                "Acciones": round(cant_acciones, 4),
+                "Precio Compra": f"{simbolo_orig}{costo_compra:,.4f}", 
+                "Precio Actual": f"{simbolo_orig}{precio_actual:,.4f}",
+                "Inversión Inicial": f"{simbolo_orig}{costo_total_origen:,.2f}", 
+                "Valor de Mercado": f"{simbolo_orig}{valor_actual_origen:,.2f}", 
+                "Rendimiento": f"{rendimiento_porc:+.2f}%",
+                "Monto_Grafico_USD": actual_usd # Mantenemos oculto el valor unificado para el gráfico circular
             })
 
     if iffs_datos:
         df = pd.DataFrame(iffs_datos)
         
-        moneda_visual = st.radio("💱 Ver totales en:", ["Euros (€)", "Dólares ($)"], horizontal=True)
+        moneda_visual = st.radio("💱 Ver totales superiores en:", ["Euros (€)", "Dólares ($)"], horizontal=True)
         factor = 1 / TIPO_CAMBIO_EUR_USD if moneda_visual == "Euros (€)" else 1.0
         simbolo_kpi = "€" if moneda_visual == "Euros (€)" else "$"
 
@@ -138,12 +136,14 @@ if lista_activos:
 
         st.markdown("---")
         st.subheader("🍰 Distribución de Capital")
-        fig_pie = px.pie(df, values='Valor Mercado (USD)', names='Nombre', hole=0.4, template="plotly_dark")
+        fig_pie = px.pie(df, values='Monto_Grafico_USD', names='Nombre', hole=0.4, template="plotly_dark")
         st.plotly_chart(fig_pie, use_container_width=True)
 
         st.subheader("📋 Lista Detallada de Activos")
-        st.dataframe(df, use_container_width=True)
+        # Quitamos la columna de gráfico para no confundir la vista tabular limpia
+        df_mostrar = df.drop(columns=['Monto_Grafico_USD'])
+        st.dataframe(df_mostrar, use_container_width=True)
     else:
-        st.warning("Escribe tus fondos o acciones en la fila 2 de tu Hoja de cálculo de Google para ver las métricas.")
+        st.warning("Escribe tus fondos o acciones en tu Hoja de cálculo de Google para ver las métricas.")
 else:
-    st.warning("Tu Hoja de cálculo de Google está vacía o el enlace en la línea 14 no es correcto. Escribe tus fondos o acciones en la fila 2 de tu Hoja de cálculo de Google para ver las métricas.")
+    st.warning("Tu Hoja de cálculo de Google está vacía o el enlace en la línea 14 no es correcto.")
