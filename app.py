@@ -11,7 +11,7 @@ st.set_page_config(page_title="Mi App de Inversiones Segura Pro", page_icon="ðŸ“
 # =========================================================================
 CONTRASENA_ACCESO = "2707"  # Tu contraseÃ±a fija configurada
 
-URL_GOOGLE_SHEETS = "https://google.com"
+URL_GOOGLE_SHEETS = "https://docs.google.com/spreadsheets/d/1e6en21Ieuoy4rQeiTa_aUIO9mgLHjN3l9xBUYQaxKZY/edit?usp=sharing"
 # =========================================================================
 
 # Estilos visuales
