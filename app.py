@@ -146,7 +146,8 @@ if st.session_state.portafolio:
     st.markdown(f"""
         <div style='text-align: center; background-color: #1c2541; padding: 10px; border-radius: 8px; border-top: 4px solid {color_rendimiento};'>
             <span style='color: #9ca3af; font-size: 12px; text-transform: uppercase;'>Rendimiento Neto Total</span><br>
-           <span style='color: {color_rendimiento}; font-size: 24px; font-weight: bold;'>{ganancia_global_usd * factor:+\,.2f}{simbolo_kpi} ({roi_global:+.2f}%)</span>
+           <span style='color: {color_rendimiento}; font-size: 24px; font-weight: bold;'>{ganancia_global_usd * factor:+.2f}{simbolo_kpi} ({roi_global:+.2f}%)</span>
+
 
         </div>
     """, unsafe_allow_html=True)
