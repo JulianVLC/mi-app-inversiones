@@ -9,9 +9,9 @@ st.set_page_config(page_title="Mi App de Inversiones Segura", page_icon="📈", 
 # =========================================================================
 # CONFIGURACIÓN DE SEGURIDAD Y BASE DE DATOS
 # =========================================================================
-CONTRASENA_ACCESO = "2707"  # <-- Cambia "2707" por la contraseña que quieras para tu móvil
+CONTRASENA_ACCESO = "1234"  # <-- Pon tu contraseña preferida aquí
 
-URL_GOOGLE_SHEETS = "https://docs.google.com/spreadsheets/d/1e6en21Ieuoy4rQeiTa_aUIO9mgLHjN3l9xBUYQaxKZY/edit?gid=0#gid=0"
+URL_GOOGLE_SHEETS = "https://google.com"
 # =========================================================================
 
 # Estilos visuales
@@ -41,11 +41,16 @@ if not st.session_state.autenticado:
 
 # --- CONEXIÓN A LA HOJA DE CÁLCULO ---
 try:
-    # Convertimos el enlace web normal en un conector de datos limpio para Python
     csv_url = URL_GOOGLE_SHEETS.replace('/edit?usp=sharing', '/gviz/tq?tqx=out:csv').replace('/edit#gid=', '/gviz/tq?tqx=out:csv&gid=')
     if "/edit" in URL_GOOGLE_SHEETS and not "tqx=out:csv" in csv_url:
-        csv_url = URL_GOOGLE_SHEETS.split('/edit')[0] + '/gviz/tq?tqx=out:csv'
+        csv_url = URL_GOOGLE_SHEETS.split('/edit') + '/gviz/tq?tqx=out:csv'
     df_google = pd.read_csv(csv_url)
+    
+    # Forzamos que los nombres de las columnas se lean siempre en minúsculas y sin espacios ocultos
+    df_google.columns = df_google.columns.str.strip().str.lower()
+    
+    # Eliminamos de la lectura cualquier fila que Google Sheets cree vacía abajo
+    df_google = df_google.dropna(subset=['ticker'])
     lista_activos = df_google.to_dict(orient="records")
 except:
     lista_activos = []
@@ -66,52 +71,79 @@ total_actual_usd = 0.0
 if lista_activos:
     with st.spinner("🔄 Sincronizando cotizaciones vivas..."):
         for item in lista_activos:
+            # Forzamos conversión segura de cada celda protegiendo la app si falta un dato
+            ticker_str = str(item.get("ticker", "")).strip().upper()
+            if not ticker_str or ticker_str == "NAN":
+                continue
+                
+            # Intentamos rescatar los números de forma ultra segura limpiando cualquier carácter raro
             try:
-                ticker_str = str(item["ticker"]).strip().upper()
+                cant_acciones = float(str(item.get("acciones", 0)).replace(",", ".").strip())
+            except:
+                cant_acciones = 0.0
+                
+            try:
+                costo_compra = float(str(item.get("costo_compra", 0)).replace(",", ".").strip())
+            except:
+                costo_compra = 0.0
+
+            try:
                 ticker_data = yf.Ticker(ticker_str)
                 precio_actual = ticker_data.fast_info['last_price']
+                if precio_actual is None or precio_actual == 0:
+                    precio_actual = costo_compra
             except:
-                precio_actual = float(item["costo_compra"])
+                precio_actual = costo_compra
             
-            costo_total_origen = float(item["acciones"]) * float(item["costo_compra"])
-            valor_actual_origen = float(item["acciones"]) * precio_actual
+            costo_total_origen = cant_acciones * costo_compra
+            valor_actual_origen = cant_acciones * precio_actual
             
-            costo_usd = costo_total_origen * TIPO_CAMBIO_EUR_USD if item["moneda"] == "EUR" else costo_total_origen
-            actual_usd = valor_actual_origen * TIPO_CAMBIO_EUR_USD if item["moneda"] == "EUR" else valor_actual_origen
+            moneda_str = str(item.get("moneda", "USD")).strip().upper()
+            costo_usd = costo_total_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else costo_total_origen
+            actual_usd = valor_actual_origen * TIPO_CAMBIO_EUR_USD if moneda_str == "EUR" else valor_actual_origen
             
             total_costo_usd += costo_usd
             total_actual_usd += actual_usd
             
             rendimiento_dinero = valor_actual_origen - costo_total_origen
             rendimiento_porc = (rendimiento_dinero / costo_total_origen) * 100 if costo_total_origen > 0 else 0
-            simbolo_orig = "€" if item["moneda"] == "EUR" else "$"
+            simbolo_orig = "€" if moneda_str == "EUR" else "$"
             
             iffs_datos.append({
-                "Ticker": item["ticker"], "Nombre": item["nombre"], "ISIN": item["isin"], "Acciones": item["acciones"],
-                "Precio Compra": f"{simbolo_orig}{float(item['costo_compra']):,.2f}", "Precio Actual": f"{simbolo_orig}{precio_actual:,.2f}",
-                "Inversión Inicial": costo_usd, "Valor Mercado (USD)": actual_usd, "Rendimiento": f"{rendimiento_porc:+.2f}%"
+                "Ticker": ticker_str, 
+                "Nombre": item.get("nombre", ticker_str), 
+                "ISIN": item.get("isin", "N/A"), 
+                "Acciones": cant_acciones,
+                "Precio Compra": f"{simbolo_orig}{costo_compra:,.2f}", 
+                "Precio Actual": f"{simbolo_orig}{precio_actual:,.2f}",
+                "Inversión Inicial": costo_usd, 
+                "Valor Mercado (USD)": actual_usd, 
+                "Rendimiento": f"{rendimiento_porc:+.2f}%"
             })
 
-    df = pd.DataFrame(iffs_datos)
-    
-    moneda_visual = st.radio("💱 Ver totales en:", ["Euros (€)", "Dólares ($)"], horizontal=True)
-    factor = 1 / TIPO_CAMBIO_EUR_USD if moneda_visual == "Euros (€)" else 1.0
-    simbolo_kpi = "€" if moneda_visual == "Euros (€)" else "$"
+    if iffs_datos:
+        df = pd.DataFrame(iffs_datos)
+        
+        moneda_visual = st.radio("💱 Ver totales en:", ["Euros (€)", "Dólares ($)"], horizontal=True)
+        factor = 1 / TIPO_CAMBIO_EUR_USD if moneda_visual == "Euros (€)" else 1.0
+        simbolo_kpi = "€" if moneda_visual == "Euros (€)" else "$"
 
-    ganancia_global_usd = total_actual_usd - total_costo_usd
-    roi_global = (ganancia_global_usd / total_costo_usd) * 100 if total_costo_usd > 0 else 0
+        ganancia_global_usd = total_actual_usd - total_costo_usd
+        roi_global = (ganancia_global_usd / total_costo_usd) * 100 if total_costo_usd > 0 else 0
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Capital Invertido", f"{simbolo_kpi}{total_costo_usd * factor:,.2f}")
-    c2.metric("Valor del Portafolio", f"{simbolo_kpi}{total_actual_usd * factor:,.2f}")
-    c3.metric("Rendimiento Neto", f"{simbolo_kpi}{ganancia_global_usd * factor:+.2f} ({roi_global:+.2f}%)")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Capital Invertido", f"{simbolo_kpi}{total_costo_usd * factor:,.2f}")
+        c2.metric("Valor del Portafolio", f"{simbolo_kpi}{total_actual_usd * factor:,.2f}")
+        c3.metric("Rendimiento Neto", f"{simbolo_kpi}{ganancia_global_usd * factor:+.2f} ({roi_global:+.2f}%)")
 
-    st.markdown("---")
-    st.subheader("🍰 Distribución de Capital")
-    fig_pie = px.pie(df, values='Valor Mercado (USD)', names='Nombre', hole=0.4, template="plotly_dark")
-    st.plotly_chart(fig_pie, use_container_width=True)
+        st.markdown("---")
+        st.subheader("🍰 Distribución de Capital")
+        fig_pie = px.pie(df, values='Valor Mercado (USD)', names='Nombre', hole=0.4, template="plotly_dark")
+        st.plotly_chart(fig_pie, use_container_width=True)
 
-    st.subheader("📋 Lista Detallada de Activos")
-    st.dataframe(df, use_container_width=True)
+        st.subheader("📋 Lista Detallada de Activos")
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.warning("Escribe tus fondos o acciones en la fila 2 de tu Hoja de cálculo de Google para ver las métricas.")
 else:
-    st.warning("Tu Hoja de cálculo de Google está vacía o el enlace en la línea 14 no es correcto. Escribe tus fondos o acciones en la fila 2 de tu documento de Google para ver los gráficos.")
+    st.warning("Tu Hoja de cálculo de Google está vacía o el enlace en la línea 14 no es correcto. Escribe tus fondos o acciones en la fila 2 de tu Hoja de cálculo de Google para ver las métricas.")
